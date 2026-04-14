@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
-import { useReminders, useLeads, getLeadName } from "@/lib/store";
+import { useReminders, useLeads } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Bell } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/reminders")({
@@ -27,13 +27,16 @@ function RemindersPage() {
   const { leads } = useLeads();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const leadNameMap = useMemo(() => new Map(leads.map(l => [l.id, l.name])), [leads]);
+  const getLeadName = (id: string) => leadNameMap.get(id) ?? "Unknown";
+
   const upcoming = reminders.filter(r => !r.completed).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const completed = reminders.filter(r => r.completed);
 
-  function handleCreate(e: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    addReminder({ lead_id: fd.get("lead_id") as string, date: fd.get("date") as string, note: fd.get("note") as string });
+    await addReminder({ lead_id: fd.get("lead_id") as string, date: fd.get("date") as string, note: fd.get("note") as string });
     setDialogOpen(false);
   }
 

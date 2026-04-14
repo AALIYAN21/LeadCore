@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useLeads, useReminders, getLeadName } from "@/lib/store";
+import { useLeads, useReminders } from "@/lib/store";
 import { Users, Handshake, Bell, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "@tanstack/react-router";
@@ -29,6 +29,10 @@ function DashboardPage() {
 
   const recentLeads = [...leads].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   const upcomingReminders = reminders.filter(r => !r.completed).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 5);
+
+  // Build a lead name lookup from loaded leads
+  const leadNameMap = new Map(leads.map(l => [l.id, l.name]));
+  const getLeadName = (id: string) => leadNameMap.get(id) ?? "Unknown";
 
   return (
     <AppLayout>
