@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 
-export const Route = createFileRoute("/leads")({
+export const Route = createFileRoute("/leads/")({
   head: () => ({
     meta: [
       { title: "Leads — SalesAI" },
