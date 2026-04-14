@@ -49,8 +49,8 @@ function LoginPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
             <Sparkles className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-xl">Sign in to SalesAI</CardTitle>
-          <p className="text-sm text-muted-foreground">Enter your credentials to continue</p>
+          <CardTitle className="text-xl mb-1.5">Sign in to LeadCore</CardTitle>
+          <p className="text-sm text-muted-foreground mb-3">Enter your credentials to continue</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

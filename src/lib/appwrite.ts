@@ -2,16 +2,25 @@ import { Client, Account, Databases } from "appwrite";
 
 const client = new Client();
 
-// ⚠️ TODO: Replace with your Appwrite endpoint and project ID
+const endPoint = import.meta.env.VITE_APPWRITE_ENDPOINT
+const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID
+
+const databseConfig = {
+  leads: import.meta.env.VITE_APPWRITE_LEADS_COLLECTION_ID,
+  messages: import.meta.env.VITE_APPWRITE_MESSAGES_COLLECTION_ID,
+  reminders: import.meta.env.VITE_APPWRITE_REMINDERS_COLLECTION_ID
+}
+
+// ⚠️ TODO: Replace with our Appwrite endpoint and project ID
 client
-  .setEndpoint("https://cloud.appwrite.io/v1") // Your Appwrite Endpoint
-  .setProject("YOUR_PROJECT_ID"); // ← Replace with your Appwrite Project ID
+  .setEndpoint(endPoint as string) 
+  .setProject(projectId as string);
 
 export const account = new Account(client);
 export const databases = new Databases(client);
 
-// ⚠️ TODO: Replace these with your Appwrite Database ID and Collection IDs
-// You need to create these collections in your Appwrite Console:
+// ⚠️ TODO: Replace these with Appwrite Database ID and Collection IDs
+// we need to create these collections in our Appwrite Console:
 //
 // Database: Create a database and paste its ID below
 //
@@ -45,9 +54,9 @@ export const databases = new Databases(client);
 //   authenticated users to Create, Read, Update, Delete their own documents.
 //   You can use "Users" role or set document-level permissions.
 
-export const DATABASE_ID = "YOUR_DATABASE_ID"; // ← Replace with your Database ID
+export const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID; // ← Replace with your Database ID
 export const COLLECTIONS = {
-  LEADS: "YOUR_LEADS_COLLECTION_ID", // ← Replace with your Leads Collection ID
-  MESSAGES: "YOUR_MESSAGES_COLLECTION_ID", // ← Replace with your Messages Collection ID
-  REMINDERS: "YOUR_REMINDERS_COLLECTION_ID", // ← Replace with your Reminders Collection ID
+  LEADS: databseConfig.leads, 
+  MESSAGES: databseConfig.messages,
+  REMINDERS: databseConfig.reminders,
 };

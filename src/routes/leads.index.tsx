@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
+import { account } from "@/lib/appwrite";
 
 export const Route = createFileRoute("/leads/")({
   head: () => ({
@@ -37,6 +38,7 @@ function LeadsPage() {
     const matchesStatus = filterStatus === "all" || l.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
 
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -53,8 +53,8 @@ function SignupPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
             <Sparkles className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-xl">Create your account</CardTitle>
-          <p className="text-sm text-muted-foreground">Start managing leads with AI</p>
+          <CardTitle className="text-xl mb-1.5">Create your account</CardTitle>
+          <p className="text-sm text-muted-foreground mb-3">Start managing leads like never before with AI</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

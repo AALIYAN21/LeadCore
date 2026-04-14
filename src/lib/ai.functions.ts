@@ -6,10 +6,10 @@ import { createServerFn } from "@tanstack/react-start";
 //
 // The key is accessed via process.env.GEMINI_API_KEY on the server side.
 
-const GEMINI_MODEL = "gemini-2.5-flash-preview-05-20";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 async function callGemini(prompt: string, systemInstruction?: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   // ⚠️ If GEMINI_API_KEY is not set, return a placeholder message
   if (!apiKey) {
     return "[AI Response Placeholder] — GEMINI_API_KEY is not configured. Please add it to your server environment variables.";

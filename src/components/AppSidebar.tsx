@@ -41,7 +41,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-              SalesAI
+              LeadCore
             </span>
           )}
         </Link>
