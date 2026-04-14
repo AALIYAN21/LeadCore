@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
-import { getLeadById, useMessages, useLeads, useReminders, type LeadStatus } from "@/lib/store";
+import { useLeadById, useMessages, useLeads, useReminders, type LeadStatus } from "@/lib/store";
+import { generateFollowUp, summarizeConversation, getSmartSuggestions } from "@/lib/ai.functions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Send, Sparkles, Copy, Bell, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Send, Sparkles, Copy, Bell, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -26,10 +27,10 @@ const TONES = ["friendly", "professional", "persuasive"] as const;
 
 function LeadDetailPage() {
   const { leadId } = Route.useParams();
-  const { updateLead, deleteLead } = useLeads();
+  const { updateLead } = useLeads();
+  const { lead, loading: leadLoading, setLead } = useLeadById(leadId);
   const { messages, addMessage } = useMessages(leadId);
   const { addReminder } = useReminders();
-  const [lead, setLead] = useState(() => getLeadById(leadId));
   const [newMessage, setNewMessage] = useState("");
   const [aiOutput, setAiOutput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -38,9 +39,15 @@ function LeadDetailPage() {
   const [conversationText, setConversationText] = useState("");
   const [reminderOpen, setReminderOpen] = useState(false);
 
-  useEffect(() => {
-    setLead(getLeadById(leadId));
-  }, [leadId]);
+  if (leadLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!lead) {
     return (
@@ -53,34 +60,62 @@ function LeadDetailPage() {
     );
   }
 
-  function handleSendMessage() {
+  async function handleSendMessage() {
     if (!newMessage.trim()) return;
-    addMessage(newMessage.trim());
-    updateLead(leadId, { last_contacted_at: new Date().toISOString() });
+    await addMessage(newMessage.trim());
+    await updateLead(leadId, { last_contacted_at: new Date().toISOString() });
     setNewMessage("");
-    setLead(getLeadById(leadId));
   }
 
-  function handleStatusChange(status: LeadStatus) {
-    updateLead(leadId, { status });
-    setLead(getLeadById(leadId));
+  async function handleStatusChange(status: LeadStatus) {
+    await updateLead(leadId, { status });
+    setLead((prev) => prev ? { ...prev, status } : prev);
   }
 
-  function handleAI() {
+  async function handleAI() {
+    if (!lead) return;
     setAiLoading(true);
-    // Simulated AI response (backend not connected)
-    setTimeout(() => {
+    try {
       if (aiMode === "followup") {
-        const lastMsg = messages[messages.length - 1]?.content || lead!.notes;
-        setAiOutput(`Hi ${lead!.name},\n\nThank you for our recent conversation. I wanted to follow up on ${lastMsg ? "our discussion" : "your inquiry"}. I'd love to explore how we can move forward together.\n\nWould you be available for a quick call this week to discuss next steps?\n\nBest regards`);
+        const lastMsg = messages[messages.length - 1]?.content || lead.notes;
+        const result = await generateFollowUp({
+          data: {
+            leadName: lead.name,
+            company: lead.company,
+            lastMessage: lastMsg,
+            notes: lead.notes,
+            tone,
+          },
+        });
+        setAiOutput(result.text);
       } else if (aiMode === "summarize") {
-        const text = conversationText || messages.map(m => m.content).join("\n");
-        setAiOutput(`📋 Summary: The conversation covers initial outreach and project requirements.\n\n🎯 Intent: The client is exploring solutions for their ${lead!.company} team.\n\n➡️ Next Step: Schedule a discovery call to understand specific needs and budget.`);
+        const text = conversationText || messages.map((m) => m.content).join("\n");
+        const result = await summarizeConversation({
+          data: {
+            conversationText: text || "No conversation yet.",
+            leadName: lead.name,
+            company: lead.company,
+          },
+        });
+        setAiOutput(result.text);
       } else {
-        setAiOutput(`💡 Recommended Action: Send a personalized case study relevant to ${lead!.company}'s industry.\n\n📊 Deal Status: ${lead!.status === "Negotiation" ? "High probability — client is actively evaluating." : "Needs nurturing — focus on building trust."}\n\n🗓️ Timing: Best to follow up within the next 2 days.`);
+        const result = await getSmartSuggestions({
+          data: {
+            leadName: lead.name,
+            company: lead.company,
+            status: lead.status,
+            notes: lead.notes,
+            messageHistory: messages.map((m) => m.content).join("\n"),
+          },
+        });
+        setAiOutput(result.text);
       }
+    } catch (err) {
+      console.error("AI error:", err);
+      setAiOutput("[Error] Failed to generate AI response. Please try again.");
+    } finally {
       setAiLoading(false);
-    }, 1200);
+    }
   }
 
   function handleCopy() {
@@ -88,10 +123,10 @@ function LeadDetailPage() {
     toast.success("Copied to clipboard");
   }
 
-  function handleCreateReminder(e: React.FormEvent<HTMLFormElement>) {
+  async function handleCreateReminder(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    addReminder({ lead_id: leadId, date: fd.get("date") as string, note: fd.get("note") as string });
+    await addReminder({ lead_id: leadId, date: fd.get("date") as string, note: fd.get("note") as string });
     setReminderOpen(false);
     toast.success("Reminder created");
   }
@@ -116,7 +151,6 @@ function LeadDetailPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Left: Info + Messages */}
           <div className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Notes</CardTitle></CardHeader>
@@ -177,12 +211,11 @@ function LeadDetailPage() {
             </Card>
           </div>
 
-          {/* Right: AI */}
           <div className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" /> AI Assistant
+                  <Sparkles className="h-4 w-4 text-primary" /> AI Assistant (Gemini)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -219,8 +252,8 @@ function LeadDetailPage() {
                 )}
 
                 <Button onClick={handleAI} disabled={aiLoading} className="w-full">
-                  <Sparkles className="mr-1.5 h-4 w-4" />
-                  {aiLoading ? "Generating..." : "Generate"}
+                  {aiLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+                  {aiLoading ? "Generating..." : "Generate with Gemini"}
                 </Button>
 
                 {aiOutput && (

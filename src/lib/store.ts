@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
+import { databases, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
+import { useAuth } from "@/lib/auth";
+import { Query, ID } from "appwrite";
 
 export type LeadStatus = "Lead" | "Contacted" | "Negotiation" | "Closed" | "Lost";
 
 export interface Lead {
   id: string;
+  user_id: string;
   name: string;
   email: string;
   company: string;
@@ -16,6 +20,7 @@ export interface Lead {
 export interface Message {
   id: string;
   lead_id: string;
+  user_id: string;
   content: string;
   created_at: string;
 }
@@ -23,139 +28,203 @@ export interface Message {
 export interface Reminder {
   id: string;
   lead_id: string;
+  user_id: string;
   date: string;
   note: string;
   completed: boolean;
 }
 
-const LEADS_KEY = "sales_assistant_leads";
-const MESSAGES_KEY = "sales_assistant_messages";
-const REMINDERS_KEY = "sales_assistant_reminders";
-
-function generateId() {
-  return crypto.randomUUID();
+function docToLead(doc: any): Lead {
+  return {
+    id: doc.$id,
+    user_id: doc.user_id,
+    name: doc.name,
+    email: doc.email,
+    company: doc.company,
+    status: doc.status as LeadStatus,
+    notes: doc.notes || "",
+    last_contacted_at: doc.last_contacted_at || null,
+    created_at: doc.created_at,
+  };
 }
 
-function load<T>(key: string, fallback: T[]): T[] {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+function docToMessage(doc: any): Message {
+  return {
+    id: doc.$id,
+    lead_id: doc.lead_id,
+    user_id: doc.user_id,
+    content: doc.content,
+    created_at: doc.created_at,
+  };
 }
 
-function save<T>(key: string, data: T[]) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
-
-// Seed data
-const SEED_LEADS: Lead[] = [
-  { id: generateId(), name: "Sarah Chen", email: "sarah@techvault.io", company: "TechVault", status: "Negotiation", notes: "Interested in full rebrand. Budget ~$15k.", last_contacted_at: "2026-04-12T10:00:00Z", created_at: "2026-04-01T09:00:00Z" },
-  { id: generateId(), name: "Marcus Rivera", email: "marcus@greenleaf.co", company: "GreenLeaf Co", status: "Contacted", notes: "Needs a landing page for product launch.", last_contacted_at: "2026-04-10T14:00:00Z", created_at: "2026-04-03T11:00:00Z" },
-  { id: generateId(), name: "Emily Watson", email: "emily@novadesign.com", company: "Nova Design", status: "Lead", notes: "Referred by Jake. Interested in UX audit.", last_contacted_at: null, created_at: "2026-04-08T16:00:00Z" },
-  { id: generateId(), name: "James Park", email: "james@finflow.app", company: "FinFlow", status: "Closed", notes: "Signed contract for dashboard redesign. $8k.", last_contacted_at: "2026-04-11T09:00:00Z", created_at: "2026-03-20T08:00:00Z" },
-  { id: generateId(), name: "Lisa Thompson", email: "lisa@urbancraft.co", company: "UrbanCraft", status: "Lost", notes: "Went with a competitor. Price was the issue.", last_contacted_at: "2026-04-05T12:00:00Z", created_at: "2026-03-15T10:00:00Z" },
-];
-
-function initializeStore() {
-  if (!localStorage.getItem(LEADS_KEY)) {
-    save(LEADS_KEY, SEED_LEADS);
-  }
-  if (!localStorage.getItem(MESSAGES_KEY)) {
-    save(MESSAGES_KEY, []);
-  }
-  if (!localStorage.getItem(REMINDERS_KEY)) {
-    const seedReminders: Reminder[] = [
-      { id: generateId(), lead_id: SEED_LEADS[0].id, date: "2026-04-15", note: "Follow up on proposal", completed: false },
-      { id: generateId(), lead_id: SEED_LEADS[1].id, date: "2026-04-16", note: "Send landing page mockups", completed: false },
-    ];
-    save(REMINDERS_KEY, seedReminders);
-  }
+function docToReminder(doc: any): Reminder {
+  return {
+    id: doc.$id,
+    lead_id: doc.lead_id,
+    user_id: doc.user_id,
+    date: doc.date,
+    note: doc.note,
+    completed: doc.completed,
+  };
 }
 
 export function useLeads() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.LEADS, [
+        Query.equal("user_id", user.$id),
+        Query.orderDesc("created_at"),
+        Query.limit(100),
+      ]);
+      setLeads(res.documents.map(docToLead));
+    } catch (err) {
+      console.error("Failed to fetch leads:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    initializeStore();
-    setLeads(load<Lead>(LEADS_KEY, []));
+    refresh();
+  }, [refresh]);
+
+  const addLead = useCallback(
+    async (lead: Omit<Lead, "id" | "created_at" | "user_id">) => {
+      if (!user) return;
+      const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.LEADS, ID.unique(), {
+        ...lead,
+        user_id: user.$id,
+        last_contacted_at: lead.last_contacted_at || "",
+        notes: lead.notes || "",
+        created_at: new Date().toISOString(),
+      });
+      const newLead = docToLead(doc);
+      setLeads((prev) => [newLead, ...prev]);
+      return newLead;
+    },
+    [user]
+  );
+
+  const updateLead = useCallback(
+    async (id: string, patch: Partial<Lead>) => {
+      const { id: _id, user_id: _uid, ...rest } = patch as any;
+      await databases.updateDocument(DATABASE_ID, COLLECTIONS.LEADS, id, rest);
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    },
+    []
+  );
+
+  const deleteLead = useCallback(async (id: string) => {
+    await databases.deleteDocument(DATABASE_ID, COLLECTIONS.LEADS, id);
+    setLeads((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
-  const refresh = useCallback(() => setLeads(load<Lead>(LEADS_KEY, [])), []);
-
-  const addLead = useCallback((lead: Omit<Lead, "id" | "created_at">) => {
-    const newLead: Lead = { ...lead, id: generateId(), created_at: new Date().toISOString() };
-    const updated = [newLead, ...load<Lead>(LEADS_KEY, [])];
-    save(LEADS_KEY, updated);
-    setLeads(updated);
-    return newLead;
-  }, []);
-
-  const updateLead = useCallback((id: string, patch: Partial<Lead>) => {
-    const updated = load<Lead>(LEADS_KEY, []).map(l => l.id === id ? { ...l, ...patch } : l);
-    save(LEADS_KEY, updated);
-    setLeads(updated);
-  }, []);
-
-  const deleteLead = useCallback((id: string) => {
-    const updated = load<Lead>(LEADS_KEY, []).filter(l => l.id !== id);
-    save(LEADS_KEY, updated);
-    setLeads(updated);
-  }, []);
-
-  return { leads, addLead, updateLead, deleteLead, refresh };
+  return { leads, loading, addLead, updateLead, deleteLead, refresh };
 }
 
 export function useMessages(leadId: string) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    const all = load<Message>(MESSAGES_KEY, []);
-    setMessages(all.filter(m => m.lead_id === leadId));
-  }, [leadId]);
+    if (!user || !leadId) return;
+    databases
+      .listDocuments(DATABASE_ID, COLLECTIONS.MESSAGES, [
+        Query.equal("lead_id", leadId),
+        Query.orderAsc("created_at"),
+        Query.limit(100),
+      ])
+      .then((res) => setMessages(res.documents.map(docToMessage)))
+      .catch((err) => console.error("Failed to fetch messages:", err));
+  }, [user, leadId]);
 
-  const addMessage = useCallback((content: string) => {
-    const msg: Message = { id: generateId(), lead_id: leadId, content, created_at: new Date().toISOString() };
-    const all = [...load<Message>(MESSAGES_KEY, []), msg];
-    save(MESSAGES_KEY, all);
-    setMessages(all.filter(m => m.lead_id === leadId));
-    return msg;
-  }, [leadId]);
+  const addMessage = useCallback(
+    async (content: string) => {
+      if (!user) return;
+      const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.MESSAGES, ID.unique(), {
+        lead_id: leadId,
+        user_id: user.$id,
+        content,
+        created_at: new Date().toISOString(),
+      });
+      const msg = docToMessage(doc);
+      setMessages((prev) => [...prev, msg]);
+      return msg;
+    },
+    [user, leadId]
+  );
 
   return { messages, addMessage };
 }
 
 export function useReminders() {
+  const { user } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.REMINDERS, [
+        Query.equal("user_id", user.$id),
+        Query.limit(100),
+      ]);
+      setReminders(res.documents.map(docToReminder));
+    } catch (err) {
+      console.error("Failed to fetch reminders:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    initializeStore();
-    setReminders(load<Reminder>(REMINDERS_KEY, []));
-  }, []);
+    refresh();
+  }, [refresh]);
 
-  const addReminder = useCallback((r: Omit<Reminder, "id" | "completed">) => {
-    const reminder: Reminder = { ...r, id: generateId(), completed: false };
-    const updated = [...load<Reminder>(REMINDERS_KEY, []), reminder];
-    save(REMINDERS_KEY, updated);
-    setReminders(updated);
-    return reminder;
-  }, []);
+  const addReminder = useCallback(
+    async (r: Omit<Reminder, "id" | "completed" | "user_id">) => {
+      if (!user) return;
+      const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.REMINDERS, ID.unique(), {
+        ...r,
+        user_id: user.$id,
+        completed: false,
+      });
+      const reminder = docToReminder(doc);
+      setReminders((prev) => [...prev, reminder]);
+      return reminder;
+    },
+    [user]
+  );
 
-  const toggleReminder = useCallback((id: string) => {
-    const updated = load<Reminder>(REMINDERS_KEY, []).map(r => r.id === id ? { ...r, completed: !r.completed } : r);
-    save(REMINDERS_KEY, updated);
-    setReminders(updated);
-  }, []);
+  const toggleReminder = useCallback(async (id: string) => {
+    const existing = reminders.find((r) => r.id === id);
+    if (!existing) return;
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.REMINDERS, id, {
+      completed: !existing.completed,
+    });
+    setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, completed: !r.completed } : r)));
+  }, [reminders]);
 
-  return { reminders, addReminder, toggleReminder };
+  return { reminders, loading, addReminder, toggleReminder, refresh };
 }
 
-export function getLeadById(id: string): Lead | undefined {
-  return load<Lead>(LEADS_KEY, []).find(l => l.id === id);
-}
+export function useLeadById(id: string) {
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [loading, setLoading] = useState(true);
 
-export function getLeadName(leadId: string): string {
-  const lead = getLeadById(leadId);
-  return lead?.name ?? "Unknown";
+  useEffect(() => {
+    databases
+      .getDocument(DATABASE_ID, COLLECTIONS.LEADS, id)
+      .then((doc) => setLead(docToLead(doc)))
+      .catch(() => setLead(null))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  return { lead, loading, setLead };
 }
