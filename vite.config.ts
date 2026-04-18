@@ -9,5 +9,5 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
     plugins: [react()],
-    base: import.meta.env.BASE_PATH || "/lead-core",
+    base: import.meta.env.VITE_BASE_PATH || "/lead-core",
 });
