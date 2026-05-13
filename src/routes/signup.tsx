@@ -38,7 +38,7 @@ function SignupPage() {
     try {
       await signup(name, email, password);
       toast.success("Account created! Welcome to SalesAI.");
-      navigate({ to: "/" });
+      navigate({ to: "/dashboard" });
     } catch (err: any) {
       toast.error(err?.message || "Failed to create account");
     } finally {
@@ -50,9 +50,7 @@ function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="items-center space-y-3 pb-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Sparkles className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <img src="/favicon.png" alt="LeadCore" className="h-12 w-12 rounded-xl mb-2" />
           <CardTitle className="text-xl mb-1.5">Create your account</CardTitle>
           <p className="text-sm text-muted-foreground mb-3">Start managing leads like never before with AI</p>
         </CardHeader>

@@ -13,8 +13,11 @@ export interface Lead {
   company: string;
   status: LeadStatus;
   notes: string;
+  value: number;
+  currency: string;
   last_contacted_at: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Message {
@@ -43,8 +46,11 @@ function docToLead(doc: any): Lead {
     company: doc.company,
     status: doc.status as LeadStatus,
     notes: doc.notes || "",
+    value: doc.value || 0,
+    currency: doc.currency || "USD",
     last_contacted_at: doc.last_contacted_at || null,
     created_at: doc.created_at,
+    updated_at: doc.$updatedAt,
   };
 }
 
@@ -100,6 +106,8 @@ export function useLeads() {
       const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.LEADS, ID.unique(), {
         ...lead,
         user_id: user.$id,
+        value: lead.value || 0,
+        currency: lead.currency || "USD",
         last_contacted_at: lead.last_contacted_at || "",
         notes: lead.notes || "",
         created_at: new Date().toISOString(),
@@ -227,4 +235,76 @@ export function useLeadById(id: string) {
   }, [id]);
 
   return { lead, loading, setLead };
+}
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  nativeCurrency: string;
+  exchangeRates: Record<string, number>;
+}
+
+export function useSettings() {
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.SETTINGS, [
+        Query.equal("user_id", user.$id),
+        Query.limit(1)
+      ]);
+      if (res.documents.length > 0) {
+        const doc = res.documents[0];
+        setSettings({
+          id: doc.$id,
+          user_id: doc.user_id,
+          nativeCurrency: doc.nativeCurrency || "USD",
+          exchangeRates: doc.exchangeRates ? JSON.parse(doc.exchangeRates) : {}
+        });
+      } else {
+        setSettings({
+          id: "",
+          user_id: user.$id,
+          nativeCurrency: "USD",
+          exchangeRates: {}
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch settings", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const updateSettings = async (patch: { nativeCurrency?: string; exchangeRates?: Record<string, number> }) => {
+    if (!user || !settings) return;
+    try {
+      const payload: any = {};
+      if (patch.nativeCurrency !== undefined) payload.nativeCurrency = patch.nativeCurrency;
+      if (patch.exchangeRates !== undefined) payload.exchangeRates = JSON.stringify(patch.exchangeRates);
+
+      if (settings.id) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.SETTINGS, settings.id, payload);
+      } else {
+        const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.SETTINGS, ID.unique(), {
+          user_id: user.$id,
+          ...payload
+        });
+        settings.id = doc.$id;
+      }
+      setSettings(prev => prev ? { ...prev, ...patch } : null);
+    } catch (err) {
+      console.error("Failed to update settings", err);
+      throw err;
+    }
+  };
+
+  return { settings, loading, updateSettings, refresh };
 }

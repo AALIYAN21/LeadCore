@@ -1,13 +1,33 @@
+import { account, databases, DATABASE_ID, COLLECTIONS } from "./appwrite";
+import { Query } from "appwrite";
+
 const GEMINI_MODEL = "gemini-2.5-flash";
+
+async function getApiKey(): Promise<string | null> {
+  try {
+    const user = await account.get();
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_AI, [
+      Query.equal("user_id", user.$id),
+      Query.limit(1)
+    ]);
+    if (res.documents.length > 0) {
+      return res.documents[0].geminiApiKey;
+    }
+  } catch (error) {
+    console.error("Failed to fetch API key from UserAI table", error);
+  }
+  // Fallback to env variable if exists
+  return import.meta.env.VITE_GEMINI_API_KEY || null;
+}
 
 async function callGemini(
   prompt: string,
   systemInstruction?: string,
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  // ⚠️ If GEMINI_API_KEY is not set, return a placeholder message
+  const apiKey = await getApiKey();
+  
   if (!apiKey) {
-    return "[AI Response Placeholder] — GEMINI_API_KEY is not configured. Please add it to your server environment variables.";
+    return "[AI Response Placeholder] — Gemini API Key is not configured in your AI Settings. Please configure it in Settings (Ctrl+K).";
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;

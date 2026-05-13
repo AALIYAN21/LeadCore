@@ -4,14 +4,11 @@ import { useLeads, type Lead, type LeadStatus } from "@/lib/store";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Edit2 } from "lucide-react";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
-import { account } from "@/lib/appwrite";
+import { LeadFormSheet } from "@/components/LeadFormSheet";
 
 export const Route = createFileRoute("/leads/")({
   head: () => ({
@@ -26,10 +23,11 @@ export const Route = createFileRoute("/leads/")({
 const STATUSES: LeadStatus[] = ["Lead", "Contacted", "Negotiation", "Closed", "Lost"];
 
 function LeadsPage() {
-  const { leads, addLead } = useLeads();
+  const { leads, addLead, updateLead } = useLeads();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
 
   const filtered = leads.filter(l => {
     const matchesSearch = l.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -39,20 +37,23 @@ function LeadsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const handleSaveLead = (leadData: Partial<Lead>) => {
+    if (editingLead) {
+      updateLead(editingLead.id, leadData);
+    } else {
+      addLead(leadData as any);
+    }
+  };
 
-  function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    addLead({
-      name: fd.get("name") as string,
-      email: fd.get("email") as string,
-      company: fd.get("company") as string,
-      status: (fd.get("status") as LeadStatus) || "Lead",
-      notes: fd.get("notes") as string || "",
-      last_contacted_at: null,
-    });
-    setDialogOpen(false);
-  }
+  const openNewLead = () => {
+    setEditingLead(null);
+    setSheetOpen(true);
+  };
+
+  const openEditLead = (lead: Lead) => {
+    setEditingLead(lead);
+    setSheetOpen(true);
+  };
 
   return (
     <AppLayout>
@@ -62,42 +63,15 @@ function LeadsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
             <p className="text-sm text-muted-foreground">{leads.length} total leads</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Plus className="mr-1.5 h-4 w-4" />Add Lead</Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader><DialogTitle>New Lead</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" name="name" required placeholder="John Doe" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" required placeholder="john@company.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input id="company" name="company" required placeholder="Acme Inc" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select name="status" defaultValue="Lead">
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" name="notes" placeholder="Any initial notes..." rows={3} />
-                </div>
-                <Button type="submit" className="w-full">Create Lead</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm" onClick={openNewLead}>
+            <Plus className="mr-1.5 h-4 w-4" />Add Lead
+          </Button>
+          <LeadFormSheet 
+            open={sheetOpen} 
+            onOpenChange={setSheetOpen} 
+            lead={editingLead} 
+            onSave={handleSaveLead} 
+          />
         </div>
 
         <div className="flex gap-3">
@@ -120,8 +94,10 @@ function LeadsPage() {
               <tr className="border-b border-border bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">Company</th>
+                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Value</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground sm:table-cell">Status</th>
-                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Last Contact</th>
+                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground xl:table-cell">Last Contact</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -137,9 +113,17 @@ function LeadsPage() {
                       <p className="text-xs text-muted-foreground">{lead.email}</p>
                     </td>
                     <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{lead.company}</td>
+                    <td className="hidden px-4 py-3 text-card-foreground lg:table-cell">
+                      {new Intl.NumberFormat(undefined, { style: 'currency', currency: lead.currency || 'USD' }).format(lead.value || 0)}
+                    </td>
                     <td className="hidden px-4 py-3 sm:table-cell"><StatusBadge status={lead.status} /></td>
-                    <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                    <td className="hidden px-4 py-3 text-muted-foreground xl:table-cell">
                       {lead.last_contacted_at ? format(new Date(lead.last_contacted_at), "MMM d, yyyy") : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button variant="ghost" size="icon" onClick={() => openEditLead(lead)}>
+                        <Edit2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </td>
                   </tr>
                 ))

@@ -8,7 +8,9 @@ const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID
 const databseConfig = {
   leads: import.meta.env.VITE_APPWRITE_LEADS_COLLECTION_ID,
   messages: import.meta.env.VITE_APPWRITE_MESSAGES_COLLECTION_ID,
-  reminders: import.meta.env.VITE_APPWRITE_REMINDERS_COLLECTION_ID
+  reminders: import.meta.env.VITE_APPWRITE_REMINDERS_COLLECTION_ID,
+  user_ai: import.meta.env.VITE_APPWRITE_USER_AI_COLLECTION_ID,
+  settings: import.meta.env.VITE_APPWRITE_SETTINGS_COLLECTION_ID
 }
 
 // ⚠️ TODO: Replace with our Appwrite endpoint and project ID
@@ -50,6 +52,11 @@ export const databases = new Databases(client);
 //     - note (string, required, size: 1000)
 //     - completed (boolean, required, default: false)
 //
+// Collection: "user_ai"
+//   Attributes:
+//     - user_id (string, required, size: 36)
+//     - geminiApiKey (string, required, size: 255)
+//
 // ⚠️ IMPORTANT: For each collection, set permissions to allow
 //   authenticated users to Create, Read, Update, Delete their own documents.
 //   You can use "Users" role or set document-level permissions.
@@ -59,4 +66,6 @@ export const COLLECTIONS = {
   LEADS: databseConfig.leads, 
   MESSAGES: databseConfig.messages,
   REMINDERS: databseConfig.reminders,
+  USER_AI: databseConfig.user_ai,
+  SETTINGS: databseConfig.settings,
 };

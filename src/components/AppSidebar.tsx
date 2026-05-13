@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Bell, Sparkles, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Bell, Sparkles, LogOut, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import {
@@ -16,7 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Leads", url: "/leads", icon: Users },
   { title: "Reminders", url: "/reminders", icon: Bell },
 ];
@@ -35,14 +36,17 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-4">
-        <Link to="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </div>
+        <Link to="/" className="flex items-center gap-3">
+          <img src="/favicon.png" alt="LeadCore" className="h-8 w-8 rounded-lg" />
           {!collapsed && (
-            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-              LeadCore
-            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold tracking-tight text-sidebar-foreground leading-none">
+                LeadCore
+              </span>
+              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                AI Sales CRM
+              </span>
+            </div>
           )}
         </Link>
       </SidebarHeader>
