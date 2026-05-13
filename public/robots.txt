@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /analytics
+Disallow: /leads
+Disallow: /reminders
+Disallow: /settings
+
+Sitemap: https://leadcore.app/sitemap.xml
